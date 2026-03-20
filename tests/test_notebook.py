@@ -155,3 +155,47 @@ class TestSqlTableExtraction:
     def test_case_insensitive(self):
         matches = _SQL_TABLE_RE.findall("select * from My_Table")
         assert "My_Table" in matches
+
+
+class TestDatabricksNotebookParsing:
+    def setup_method(self):
+        self.parser = CodeParser()
+        self.nodes, self.edges = self.parser.parse_file(
+            FIXTURES / "sample_databricks_notebook.ipynb",
+        )
+
+    def test_parses_python_functions_from_magic(self):
+        funcs = [n for n in self.nodes if n.kind == "Function"]
+        names = {f.name for f in funcs}
+        assert "transform_data" in names
+        assert "process_results" in names
+
+    def test_extracts_sql_table_references(self):
+        imports = [e for e in self.edges if e.kind == "IMPORTS_FROM"]
+        targets = {e.target for e in imports}
+        assert "catalog.schema.raw_data" in targets
+        assert "catalog.schema.lookup" in targets
+        assert "catalog.schema.output" in targets
+
+    def test_skips_scala_cells(self):
+        names = {n.name for n in self.nodes if n.kind == "Function"}
+        assert "x" not in names
+
+    def test_skips_md_cells(self):
+        func_count = len([n for n in self.nodes if n.kind == "Function"])
+        assert func_count == 2  # transform_data + process_results
+
+    def test_default_language_for_unmagicked_cell(self):
+        """Cell 6 has no magic prefix — should use kernel default (python)."""
+        funcs = {n.name: n for n in self.nodes if n.kind == "Function"}
+        assert "process_results" in funcs
+
+    def test_cell_index_tracking(self):
+        funcs = {n.name: n for n in self.nodes if n.kind == "Function"}
+        assert funcs["transform_data"].extra.get("cell_index") == 1
+        assert funcs["process_results"].extra.get("cell_index") == 6
+
+    def test_cross_cell_python_calls(self):
+        calls = [e for e in self.edges if e.kind == "CALLS"]
+        targets = {e.target.split("::")[-1] for e in calls}
+        assert "transform_data" in targets
