@@ -7,6 +7,7 @@ Extracts structural nodes (classes, functions, imports, types) and edges
 from __future__ import annotations
 
 import hashlib
+import json
 import logging
 import re
 from dataclasses import dataclass, field
@@ -84,6 +85,7 @@ EXTENSION_TO_LANGUAGE: dict[str, str] = {
     ".pl": "perl",
     ".pm": "perl",
     ".t": "perl",
+    ".ipynb": "notebook",
 }
 
 # Tree-sitter node type mappings per language
@@ -293,6 +295,10 @@ class CodeParser:
         if language == "vue":
             return self._parse_vue(path, source)
 
+        # Jupyter notebooks: extract code cells and parse as Python
+        if language == "notebook":
+            return self._parse_notebook(path, source)
+
         parser = self._get_parser(language)
         if not parser:
             return [], []
@@ -439,6 +445,132 @@ class CodeParser:
 
             all_nodes.extend(nodes)
             all_edges.extend(edges)
+
+        # Generate TESTED_BY edges
+        if test_file:
+            test_qnames = set()
+            for n in all_nodes:
+                if n.is_test:
+                    qn = self._qualify(n.name, n.file_path, n.parent_name)
+                    test_qnames.add(qn)
+            for edge in list(all_edges):
+                if edge.kind == "CALLS" and edge.source in test_qnames:
+                    all_edges.append(EdgeInfo(
+                        kind="TESTED_BY",
+                        source=edge.target,
+                        target=edge.source,
+                        file_path=edge.file_path,
+                        line=edge.line,
+                    ))
+
+        return all_nodes, all_edges
+
+    def _parse_notebook(
+        self, path: Path, source: bytes,
+    ) -> tuple[list[NodeInfo], list[EdgeInfo]]:
+        """Parse a Jupyter notebook by extracting Python code cells."""
+        try:
+            nb = json.loads(source)
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            return [], []
+
+        # Determine kernel language — phase 1 only supports Python
+        kernel_lang = (
+            nb.get("metadata", {}).get("kernelspec", {}).get("language")
+            or nb.get("metadata", {}).get("language_info", {}).get("name")
+            or "python"
+        )
+        if kernel_lang.lower() != "python":
+            return [], []
+
+        file_path_str = str(path)
+        test_file = _is_test_file(file_path_str)
+
+        # Collect code cells, filter magic/shell lines, track offsets
+        code_chunks: list[str] = []
+        # (cell_index, concat_start_line, concat_end_line) — 1-based
+        cell_offsets: list[tuple[int, int, int]] = []
+        current_line = 1  # 1-based line in concatenated source
+
+        for cell_idx, cell in enumerate(nb.get("cells", [])):
+            if cell.get("cell_type") != "code":
+                continue
+            lines = cell.get("source", [])
+            if isinstance(lines, str):
+                lines = lines.splitlines(keepends=True)
+            # Filter magic commands and shell escapes
+            filtered = [
+                ln for ln in lines
+                if not ln.lstrip().startswith(("%", "!"))
+            ]
+            if not filtered:
+                continue
+
+            cell_source = "".join(filtered)
+            cell_line_count = cell_source.count("\n") + (
+                1 if not cell_source.endswith("\n") else 0
+            )
+
+            cell_offsets.append((
+                cell_idx, current_line, current_line + cell_line_count - 1,
+            ))
+            code_chunks.append(cell_source)
+            current_line += cell_line_count + 1  # +1 for blank separator
+
+        if not code_chunks:
+            return [NodeInfo(
+                kind="File",
+                name=file_path_str,
+                file_path=file_path_str,
+                line_start=1,
+                line_end=1,
+                language="python",
+                is_test=test_file,
+            )], []
+
+        concatenated = "\n".join(code_chunks)
+        concat_bytes = concatenated.encode("utf-8")
+
+        # Parse concatenated source as Python
+        py_parser = self._get_parser("python")
+        if not py_parser:
+            return [], []
+
+        tree = py_parser.parse(concat_bytes)
+
+        all_nodes: list[NodeInfo] = [NodeInfo(
+            kind="File",
+            name=file_path_str,
+            file_path=file_path_str,
+            line_start=1,
+            line_end=concatenated.count("\n") + 1,
+            language="python",
+            is_test=test_file,
+        )]
+        all_edges: list[EdgeInfo] = []
+
+        import_map, defined_names = self._collect_file_scope(
+            tree.root_node, "python", concat_bytes,
+        )
+        self._extract_from_tree(
+            tree.root_node, concat_bytes, "python",
+            file_path_str, all_nodes, all_edges,
+            import_map=import_map, defined_names=defined_names,
+        )
+
+        # Resolve call targets
+        all_edges = self._resolve_call_targets(
+            all_nodes, all_edges, file_path_str,
+        )
+
+        # Tag nodes with cell_index via extra
+        for node in all_nodes:
+            if node.kind == "File":
+                continue
+            for cell_idx, start, end in cell_offsets:
+                if start <= node.line_start <= end:
+                    node.extra["cell_index"] = cell_idx
+                    break
 
         # Generate TESTED_BY edges
         if test_file:
