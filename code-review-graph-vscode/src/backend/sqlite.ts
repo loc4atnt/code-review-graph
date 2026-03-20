@@ -440,6 +440,51 @@ export class SqliteReader {
   }
 
   // -----------------------------------------------------------------------
+  // Size-based queries
+  // -----------------------------------------------------------------------
+
+  /**
+   * Find nodes exceeding a line-count threshold.
+   *
+   * Mirrors the Python `GraphStore.get_nodes_by_size()` method.
+   */
+  getNodesBySize(
+    minLines: number = 50,
+    kind?: string,
+    filePathPattern?: string,
+    limit: number = 50,
+  ): Array<GraphNode & { lineCount: number }> {
+    const conditions = ['(line_end - line_start + 1) >= ?'];
+    const params: Array<string | number> = [minLines];
+
+    if (kind) {
+      conditions.push('kind = ?');
+      params.push(kind);
+    }
+    if (filePathPattern) {
+      conditions.push('file_path LIKE ?');
+      params.push(`%${filePathPattern}%`);
+    }
+
+    params.push(limit);
+    const where = conditions.join(' AND ');
+    const rows = this._db()
+      .prepare(
+        `SELECT * FROM nodes WHERE ${where} ` + // nosec
+        'ORDER BY (line_end - line_start + 1) DESC LIMIT ?',
+      )
+      .all(...params) as NodeRow[];
+
+    return rows.map((r) => ({
+      ...this._rowToNode(r),
+      lineCount:
+        r.line_start != null && r.line_end != null
+          ? r.line_end - r.line_start + 1
+          : 0,
+    }));
+  }
+
+  // -----------------------------------------------------------------------
   // Private helpers
   // -----------------------------------------------------------------------
 

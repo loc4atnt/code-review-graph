@@ -296,6 +296,216 @@ function registerCommands(
     )
   );
 
+  // -----------------------------------------------------------------
+  // codeReviewGraph.queryGraph — expose all 8 query patterns
+  // -----------------------------------------------------------------
+  context.subscriptions.push(
+    vscode.commands.registerCommand("codeReviewGraph.queryGraph", async () => {
+      if (!sqliteReader) {
+        vscode.window.showWarningMessage("Code Graph: No graph database loaded.");
+        return;
+      }
+
+      const patterns = [
+        { label: "callers_of", description: "Find functions calling the target" },
+        { label: "callees_of", description: "Find functions called by the target" },
+        { label: "imports_of", description: "Find modules imported by a file" },
+        { label: "importers_of", description: "Find files importing from the target" },
+        { label: "children_of", description: "Find nodes contained in a file or class" },
+        { label: "tests_for", description: "Find tests for a function or class" },
+        { label: "inheritors_of", description: "Find classes inheriting/implementing the target" },
+        { label: "file_summary", description: "List all nodes in a file" },
+      ];
+
+      const pattern = await vscode.window.showQuickPick(patterns, {
+        placeHolder: "Select a query pattern",
+      });
+      if (!pattern) { return; }
+
+      const target = await vscode.window.showInputBox({
+        prompt: `Enter the target for ${pattern.label}`,
+        placeHolder: "e.g., my_module.py::my_function or path/to/file.py",
+      });
+      if (!target) { return; }
+
+      // Map pattern to edge kind + direction
+      type QueryDef = { edgeKind: string; direction: "incoming" | "outgoing"; nodeFilter?: string };
+      const queryMap: Record<string, QueryDef> = {
+        callers_of: { edgeKind: "CALLS", direction: "incoming" },
+        callees_of: { edgeKind: "CALLS", direction: "outgoing" },
+        imports_of: { edgeKind: "IMPORTS_FROM", direction: "outgoing" },
+        importers_of: { edgeKind: "IMPORTS_FROM", direction: "incoming" },
+        children_of: { edgeKind: "CONTAINS", direction: "outgoing" },
+        tests_for: { edgeKind: "TESTED_BY", direction: "incoming" },
+        inheritors_of: { edgeKind: "INHERITS", direction: "incoming" },
+        file_summary: { edgeKind: "CONTAINS", direction: "outgoing" },
+      };
+
+      const qdef = queryMap[pattern.label];
+      if (!qdef) { return; }
+
+      // Try exact match, then search
+      let node = sqliteReader.getNode(target);
+      if (!node) {
+        const matches = sqliteReader.searchNodes(target, 5);
+        if (matches.length === 1) {
+          node = matches[0];
+        } else if (matches.length > 1) {
+          const selected = await vscode.window.showQuickPick(
+            matches.map(m => ({
+              label: m.name,
+              description: `${m.kind} · ${m.filePath}`,
+              node: m,
+            })),
+            { placeHolder: `Multiple matches for "${target}" — select one` },
+          );
+          if (!selected) { return; }
+          node = selected.node;
+        }
+      }
+
+      if (!node) {
+        vscode.window.showInformationMessage(`Code Graph: "${target}" not found.`);
+        return;
+      }
+
+      const edges = qdef.direction === "incoming"
+        ? sqliteReader.getEdgesByTarget(node.qualifiedName)
+        : sqliteReader.getEdgesBySource(node.qualifiedName);
+
+      const filtered = edges.filter(e => e.kind === qdef.edgeKind);
+
+      if (filtered.length === 0) {
+        vscode.window.showInformationMessage(
+          `Code Graph: No ${pattern.label} results for "${node.name}".`
+        );
+        return;
+      }
+
+      const items = filtered.map(e => {
+        const relatedQn = qdef.direction === "incoming" ? e.sourceQualified : e.targetQualified;
+        const relatedNode = sqliteReader!.getNode(relatedQn);
+        return {
+          label: relatedNode?.name ?? relatedQn,
+          description: relatedNode ? `${relatedNode.kind} · ${relatedNode.filePath}` : "",
+          detail: `Line ${relatedNode?.lineStart ?? e.line}`,
+          node: relatedNode,
+        };
+      });
+
+      const selected = await vscode.window.showQuickPick(items, {
+        placeHolder: `${pattern.label}: ${node.name} (${filtered.length} results)`,
+      });
+
+      if (selected?.node) {
+        await navigateToNode(selected.node);
+      }
+    })
+  );
+
+  // -----------------------------------------------------------------
+  // codeReviewGraph.findCallees
+  // -----------------------------------------------------------------
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codeReviewGraph.findCallees",
+      async (qualifiedName?: string) => {
+        if (!sqliteReader) {
+          vscode.window.showWarningMessage("Code Graph: No graph database loaded.");
+          return;
+        }
+
+        if (!qualifiedName) {
+          qualifiedName = await vscode.window.showInputBox({
+            prompt: "Enter the qualified name to find callees for",
+            placeHolder: "my_module.my_function",
+          });
+        }
+        if (!qualifiedName) { return; }
+
+        const edges = sqliteReader.getEdgesBySource(qualifiedName);
+        const calleeEdges = edges.filter(e => e.kind === "CALLS");
+
+        if (calleeEdges.length === 0) {
+          vscode.window.showInformationMessage(
+            `Code Graph: No callees found for "${qualifiedName}".`
+          );
+          return;
+        }
+
+        const items = calleeEdges.map(e => {
+          const calleeNode = sqliteReader!.getNode(e.targetQualified);
+          return {
+            label: calleeNode?.name ?? e.targetQualified,
+            description: calleeNode?.filePath ?? e.filePath,
+            detail: `Line ${calleeNode?.lineStart ?? e.line}`,
+            node: calleeNode,
+          };
+        });
+
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: `Callees of ${qualifiedName}`,
+        });
+
+        if (selected?.node) {
+          await navigateToNode(selected.node);
+        }
+      }
+    )
+  );
+
+  // -----------------------------------------------------------------
+  // codeReviewGraph.findLargeFunctions
+  // -----------------------------------------------------------------
+  context.subscriptions.push(
+    vscode.commands.registerCommand(
+      "codeReviewGraph.findLargeFunctions",
+      async () => {
+        if (!sqliteReader) {
+          vscode.window.showWarningMessage("Code Graph: No graph database loaded.");
+          return;
+        }
+
+        const minLinesStr = await vscode.window.showInputBox({
+          prompt: "Minimum line count threshold",
+          placeHolder: "50",
+          value: "50",
+        });
+        if (!minLinesStr) { return; }
+
+        const minLines = parseInt(minLinesStr, 10);
+        if (isNaN(minLines) || minLines < 1) {
+          vscode.window.showWarningMessage("Code Graph: Invalid line count.");
+          return;
+        }
+
+        const results = sqliteReader.getNodesBySize(minLines, undefined, undefined, 50);
+
+        if (results.length === 0) {
+          vscode.window.showInformationMessage(
+            `Code Graph: No functions found with ${minLines}+ lines.`
+          );
+          return;
+        }
+
+        const items = results.map(r => ({
+          label: `${r.name} (${r.lineCount} lines)`,
+          description: `${r.kind} · ${r.filePath}`,
+          detail: `Lines ${r.lineStart ?? "?"}–${r.lineEnd ?? "?"}`,
+          node: r as GraphNode,
+        }));
+
+        const selected = await vscode.window.showQuickPick(items, {
+          placeHolder: `${results.length} nodes with ${minLines}+ lines`,
+        });
+
+        if (selected?.node) {
+          await navigateToNode(selected.node);
+        }
+      }
+    )
+  );
+
   context.subscriptions.push(
     vscode.commands.registerCommand("codeReviewGraph.showGraph", async () => {
       if (!sqliteReader) {

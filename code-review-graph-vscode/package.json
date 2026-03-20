@@ -78,6 +78,21 @@
         "icon": "$(beaker)"
       },
       {
+        "command": "codeReviewGraph.queryGraph",
+        "title": "Code Graph: Query Graph",
+        "icon": "$(symbol-keyword)"
+      },
+      {
+        "command": "codeReviewGraph.findCallees",
+        "title": "Code Graph: Find Callees",
+        "icon": "$(call-outgoing)"
+      },
+      {
+        "command": "codeReviewGraph.findLargeFunctions",
+        "title": "Code Graph: Find Large Functions",
+        "icon": "$(warning)"
+      },
+      {
         "command": "codeReviewGraph.showGraph",
         "title": "Code Graph: Show Graph",
         "icon": "$(type-hierarchy)"
@@ -116,14 +131,19 @@
           "group": "codeGraph@2"
         },
         {
-          "command": "codeReviewGraph.findTests",
+          "command": "codeReviewGraph.findCallees",
           "when": "viewItem =~ /node-/",
           "group": "codeGraph@3"
         },
         {
-          "command": "codeReviewGraph.showGraph",
+          "command": "codeReviewGraph.findTests",
           "when": "viewItem =~ /node-/",
           "group": "codeGraph@4"
+        },
+        {
+          "command": "codeReviewGraph.showGraph",
+          "when": "viewItem =~ /node-/",
+          "group": "codeGraph@5"
         }
       ]
     },
