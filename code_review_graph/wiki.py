@@ -103,10 +103,11 @@ def _generate_community_page(store: GraphStore, community: dict[str, Any]) -> st
         for flow in all_flows:
             # Check if this flow passes through any community member
             flow_members = store._conn.execute(
-                "SELECT node_qualified_name FROM flow_memberships WHERE flow_id = ?",
+                "SELECT n.qualified_name FROM flow_memberships fm "
+                "JOIN nodes n ON fm.node_id = n.id WHERE fm.flow_id = ?",
                 (flow["id"],),
             ).fetchall()
-            flow_qns = {r["node_qualified_name"] for r in flow_members}
+            flow_qns = {r["qualified_name"] for r in flow_members}
             if flow_qns & member_set:
                 community_flows.append(flow)
 
@@ -273,9 +274,9 @@ def get_wiki_page(wiki_dir: str | Path, page_name: str) -> str | None:
     if filepath.is_file():
         return filepath.read_text(encoding="utf-8")
 
-    # Fallback: try exact filename match
-    exact_path = wiki_path / page_name
-    if exact_path.is_file():
+    # Fallback: try exact filename match — with path traversal protection
+    exact_path = (wiki_path / page_name).resolve()
+    if exact_path.is_file() and exact_path.is_relative_to(wiki_path.resolve()):
         return exact_path.read_text(encoding="utf-8")
 
     # Fallback: search for partial match

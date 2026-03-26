@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 
 _GIT_TIMEOUT = int(os.environ.get("CRG_GIT_TIMEOUT", "30"))  # seconds, configurable
 
+_SAFE_GIT_REF = re.compile(r"^[A-Za-z0-9_.~^/@{}\-]+$")
+
 # Security-sensitive keywords that increase a node's risk score.
 _SECURITY_KEYWORDS: set[str] = {
     "auth", "login", "password", "token", "session", "crypt", "secret",
@@ -47,12 +49,12 @@ def parse_git_diff_ranges(
         Mapping of file paths to lists of ``(start_line, end_line)`` tuples.
         Returns an empty dict on error.
     """
-    if base.startswith("-"):
-        logger.warning("Invalid git ref (starts with '-'): %s", base)
+    if not _SAFE_GIT_REF.match(base):
+        logger.warning("Invalid git ref rejected: %s", base)
         return {}
     try:
         result = subprocess.run(
-            ["git", "diff", "--unified=0", "--", base],
+            ["git", "diff", "--unified=0", base, "--"],
             capture_output=True,
             text=True,
             cwd=repo_root,

@@ -184,8 +184,8 @@ export class SqliteReader {
           .get() as { value: string } | undefined;
         if (row) {
           const version = parseInt(row.value, 10);
-          // Current supported schema version
-          const SUPPORTED_SCHEMA_VERSION = 1;
+          // Must match LATEST_VERSION in code_review_graph/migrations.py
+          const SUPPORTED_SCHEMA_VERSION = 5;
           if (!isNaN(version) && version > SUPPORTED_SCHEMA_VERSION) {
             return `Database was created with a newer version (schema v${version}). Update the extension.`;
           }

@@ -10,6 +10,7 @@ import fnmatch
 import hashlib
 import logging
 import os
+import re
 import subprocess
 import time
 from pathlib import Path
@@ -130,15 +131,17 @@ def _is_binary(path: Path) -> bool:
 
 _GIT_TIMEOUT = int(os.environ.get("CRG_GIT_TIMEOUT", "30"))  # seconds, configurable
 
+_SAFE_GIT_REF = re.compile(r"^[A-Za-z0-9_.~^/@{}\-]+$")
+
 
 def get_changed_files(repo_root: Path, base: str = "HEAD~1") -> list[str]:
     """Get list of changed files via git diff."""
-    if base.startswith("-"):
-        logger.warning("Invalid git ref (starts with '-'): %s", base)
+    if not _SAFE_GIT_REF.match(base):
+        logger.warning("Invalid git ref rejected: %s", base)
         return []
     try:
         result = subprocess.run(
-            ["git", "diff", "--name-only", "--", base],
+            ["git", "diff", "--name-only", base, "--"],
             capture_output=True,
             text=True,
             cwd=str(repo_root),
