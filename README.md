@@ -18,7 +18,7 @@
 Claude Code re-reads your entire codebase on every task. `code-review-graph` fixes that. It builds a structural map of your code with [Tree-sitter](https://tree-sitter.github.io/tree-sitter/), tracks changes incrementally, and gives Claude precise context so it reads only what matters.
 
 <p align="center">
-  <img src="diagrams/diagram1_before_vs_after.png" alt="The Token Problem: 6.8x fewer tokens with higher review quality" width="85%" />
+  <img src="diagrams/diagram1_before_vs_after.png" alt="The Token Problem: 8.2x average token reduction across 6 real repositories" width="85%" />
 </p>
 
 ---
@@ -109,57 +109,68 @@ Each language has full Tree-sitter grammar support for functions, classes, impor
 
 ## Benchmarks
 
-All figures come from real tests on three production open-source repositories.
-
-<p align="center">
-  <img src="diagrams/diagram5_benchmark_board.png" alt="Benchmarks: httpx 27.3x, FastAPI 6.3x, Next.js 4.9x token reduction with higher review quality" width="90%" />
-</p>
+All numbers come from the automated evaluation runner against 6 real open-source repositories (13 commits total). Reproduce with `code-review-graph eval --all`. Raw data in [`evaluate/reports/summary.md`](evaluate/reports/summary.md).
 
 <details>
-<summary><strong>Code review benchmark details (6.8x average reduction)</strong></summary>
+<summary><strong>Token efficiency: 8.2x average reduction (naive vs graph)</strong></summary>
 <br>
 
-Tested across 6 real git commits. The graph replaces reading entire source files with a compact structural summary (156-207 tokens) covering blast radius, test coverage gaps, and dependency chains.
+The graph replaces reading entire source files with a compact structural context covering blast radius, dependency chains, and test coverage gaps.
 
-| Repo | Size | Standard Approach | With Graph | Reduction | Review Quality |
-|------|-----:|------------------:|-----------:|----------:|:-:|
-| [httpx](https://github.com/encode/httpx) | 125 files | 12,507 tokens | 458 tokens | 26.2x | 9.0 vs 7.0 |
-| [FastAPI](https://github.com/fastapi/fastapi) | 2,915 files | 5,495 tokens | 871 tokens | 8.1x | 8.5 vs 7.5 |
-| [Next.js](https://github.com/vercel/next.js) | 27,732 files | 21,614 tokens | 4,457 tokens | 6.0x | 9.0 vs 7.0 |
-| **Average** | | **13,205** | **1,928** | **6.8x** | **8.8 vs 7.2** |
+| Repo | Commits | Avg Naive Tokens | Avg Graph Tokens | Reduction |
+|------|--------:|-----------------:|----------------:|----------:|
+| express | 2 | 693 | 983 | 0.7x |
+| fastapi | 2 | 4,944 | 614 | 8.1x |
+| flask | 2 | 44,751 | 4,252 | 9.1x |
+| gin | 3 | 21,972 | 1,153 | 16.4x |
+| httpx | 2 | 12,044 | 1,728 | 6.9x |
+| nextjs | 2 | 9,882 | 1,249 | 8.0x |
+| **Average** | **13** | | | **8.2x** |
 
-Standard approach: reading all changed files plus the diff. Quality scored on accuracy, completeness, bug-catching potential, and actionable insight (1-10 scale).
+**Why express shows <1x:** For single-file changes in small packages, the graph context (metadata, edges, review guidance) can exceed the raw file size. The graph approach pays off on multi-file changes where it prunes irrelevant code.
 
 </details>
 
 <details>
-<summary><strong>Live coding task details (14.1x average, 49x peak)</strong></summary>
+<summary><strong>Impact accuracy: 100% recall, 0.54 average F1</strong></summary>
 <br>
 
-An agent performed 6 real coding tasks (adding features, fixing bugs) across the same repositories. The graph directed it to the right files and away from everything else.
+The blast-radius analysis never misses an actually impacted file (perfect recall). It over-predicts in some cases, which is a conservative trade-off — better to flag too many files than miss a broken dependency.
 
-| Task | Repo | With Graph | Without Graph | Reduction | Files Skipped |
-|------|------|--------:|-----------:|----------:|---:|
-| Add rate limiter | httpx | 14,090 | 64,666 | 4.6x | 58 |
-| Fix streaming bug | httpx | 14,090 | 64,666 | 4.6x | 59 |
-| Add rate limiter | FastAPI | 37,217 | 138,585 | 3.7x | 1,120 |
-| Fix streaming bug | FastAPI | 36,986 | 138,585 | 3.7x | 1,121 |
-| Add rate limiter | Next.js | 15,049 | 739,352 | 49.1x | ~16,000 |
-| Fix streaming bug | Next.js | 16,135 | 739,352 | 45.8x | ~16,000 |
-
-The graph identified the correct files in every case. Savings scale with repository size.
+| Repo | Commits | Avg F1 | Avg Precision | Recall |
+|------|--------:|-------:|--------------:|-------:|
+| express | 2 | 0.667 | 0.50 | 1.0 |
+| fastapi | 2 | 0.584 | 0.42 | 1.0 |
+| flask | 2 | 0.475 | 0.34 | 1.0 |
+| gin | 3 | 0.429 | 0.29 | 1.0 |
+| httpx | 2 | 0.762 | 0.63 | 1.0 |
+| nextjs | 2 | 0.331 | 0.20 | 1.0 |
+| **Average** | **13** | **0.54** | **0.38** | **1.0** |
 
 </details>
 
 <details>
-<summary><strong>Monorepo scale: the 49x case</strong></summary>
+<summary><strong>Build performance</strong></summary>
 <br>
 
-Large repositories benefit most. In the Next.js monorepo (27,732 files, 739K tokens), the graph narrows the review context to ~15 files and 15K tokens, a 49x reduction with 27,700+ files excluded entirely.
+| Repo | Files | Nodes | Edges | Flow Detection | Search Latency |
+|------|------:|------:|------:|---------------:|---------------:|
+| express | 141 | 1,910 | 17,553 | 106ms | 0.7ms |
+| fastapi | 1,122 | 6,285 | 27,117 | 128ms | 1.5ms |
+| flask | 83 | 1,446 | 7,974 | 95ms | 0.7ms |
+| gin | 99 | 1,286 | 16,762 | 111ms | 0.5ms |
+| httpx | 60 | 1,253 | 7,896 | 96ms | 0.4ms |
 
-<p align="center">
-  <img src="diagrams/diagram6_monorepo_funnel.png" alt="Next.js monorepo: 27,732 files funneled down to ~15 files, 49x fewer tokens" width="75%" />
-</p>
+</details>
+
+<details>
+<summary><strong>Limitations and known weaknesses</strong></summary>
+<br>
+
+- **Small single-file changes:** Graph context can exceed naive file reads for trivial edits (see express results above). The overhead is the structural metadata that enables multi-file analysis.
+- **Search quality (MRR 0.35):** Keyword search finds the right result in the top-4 for most queries, but ranking needs improvement. Express queries return 0 hits due to module-pattern naming.
+- **Flow detection (33% recall):** Only reliably detects entry points in Python repos (fastapi, httpx) where framework patterns are recognized. JavaScript and Go flow detection needs work.
+- **Precision vs recall trade-off:** Impact analysis is deliberately conservative. It flags files that *might* be affected, which means some false positives in large dependency graphs.
 
 </details>
 
