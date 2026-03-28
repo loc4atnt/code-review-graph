@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import platform
+import shutil
 from pathlib import Path
 from typing import Any
 
@@ -87,10 +88,16 @@ PLATFORMS: dict[str, dict[str, Any]] = {
 
 def _build_server_entry(plat: dict[str, Any], key: str = "") -> dict[str, Any]:
     """Build the MCP server entry for a platform."""
-    entry: dict[str, Any] = {
-        "command": "uvx",
-        "args": ["code-review-graph", "serve"],
-    }
+    if shutil.which("uvx"):
+        entry: dict[str, Any] = {
+            "command": "uvx",
+            "args": ["code-review-graph", "serve"],
+        }
+    else:
+        entry: dict[str, Any] = {
+            "command": "code-review-graph",
+            "args": ["serve"],
+        }
     if plat["needs_type"]:
         entry["type"] = "stdio"
     if key == "opencode":
