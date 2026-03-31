@@ -193,7 +193,9 @@ class TestInstallPlatformConfigs:
         data = json.loads(config_path.read_text())
         entry = data["mcpServers"]["code-review-graph"]
         assert "type" not in entry
-        assert entry["command"] == "uvx"
+        import shutil
+        expected_cmd = "uvx" if shutil.which("uvx") else "code-review-graph"
+        assert entry["command"] == expected_cmd
 
     def test_install_zed_config(self, tmp_path):
         zed_settings = tmp_path / "zed" / "settings.json"

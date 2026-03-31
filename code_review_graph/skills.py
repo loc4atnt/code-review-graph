@@ -94,7 +94,7 @@ def _build_server_entry(plat: dict[str, Any], key: str = "") -> dict[str, Any]:
             "args": ["code-review-graph", "serve"],
         }
     else:
-        entry: dict[str, Any] = {
+        entry = {
             "command": "code-review-graph",
             "args": ["serve"],
         }

@@ -21,7 +21,7 @@ from .tsconfig_resolver import TsconfigResolver
 
 class CellInfo(NamedTuple):
     """Represents a single cell in a notebook with its language."""
-    index: int
+    cell_index: int
     language: str
     source: str
 
@@ -563,7 +563,7 @@ class CodeParser:
                 continue
 
             cell_source = "".join(filtered)
-            cells.append(CellInfo(index=cell_idx, language=cell_lang, source=cell_source))
+            cells.append(CellInfo(cell_index=cell_idx, language=cell_lang, source=cell_source))
 
         if not cells:
             file_path_str = str(path)
@@ -643,7 +643,7 @@ class CodeParser:
                     1 if not cell.source.endswith("\n") else 0
                 )
                 cell_offsets.append((
-                    cell.index, current_line, current_line + cell_line_count - 1,
+                    cell.cell_index, current_line, current_line + cell_line_count - 1,
                 ))
                 code_chunks.append(cell.source)
                 current_line += cell_line_count + 1
@@ -769,7 +769,7 @@ class CodeParser:
                     stripped = [ln for ln in stripped if ln != first_directive]
                 cell_source = "\n".join(stripped)
                 cells.append(CellInfo(
-                    index=cell_idx, language=cell_lang, source=cell_source,
+                    cell_index=cell_idx, language=cell_lang, source=cell_source,
                 ))
                 continue
 
@@ -781,7 +781,7 @@ class CodeParser:
             py_lines = [ln for ln in chunk if not ln.startswith("# MAGIC ")]
             cell_source = "\n".join(py_lines)
             cells.append(CellInfo(
-                index=cell_idx, language="python", source=cell_source,
+                cell_index=cell_idx, language="python", source=cell_source,
             ))
 
         if not cells:
