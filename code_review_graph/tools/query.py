@@ -223,9 +223,12 @@ def query_graph(
                     edges_out.append(edge_to_dict(e))
 
         elif pattern == "importers_of":
-            # Find edges where target matches this file
+            # Find edges where target matches this file.
+            # Use resolve() to canonicalize the path, matching how
+            # _resolve_module_to_file stores edge targets.
             abs_target = (
-                str(root / target) if node is None else node.file_path
+                str((root / target).resolve()) if node is None
+                else node.file_path
             )
             for e in store.get_edges_by_target(abs_target):
                 if e.kind == "IMPORTS_FROM":
