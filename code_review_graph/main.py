@@ -21,6 +21,7 @@ from .tools import (
     apply_refactor_func,
     build_or_update_graph,
     cross_repo_search_func,
+    get_minimal_context,
     run_postprocess,
     detect_changes_func,
     embed_graph,
@@ -103,6 +104,31 @@ def run_postprocess_tool(
     """
     return run_postprocess(
         flows=flows, communities=communities, fts=fts, repo_root=repo_root,
+    )
+
+
+@mcp.tool()
+def get_minimal_context_tool(
+    task: str = "",
+    changed_files: Optional[list[str]] = None,
+    repo_root: Optional[str] = None,
+    base: str = "HEAD~1",
+) -> dict:
+    """Get ultra-compact context for any task (~100 tokens). Always call this first.
+
+    Returns graph stats, risk score, top communities/flows, and suggested
+    next tools in a single compact response. Use this as the entry point
+    before any other graph tool to minimize token usage.
+
+    Args:
+        task: What you are doing (e.g. "review PR #42", "debug login timeout").
+        changed_files: Explicit list of changed files. Auto-detected if omitted.
+        repo_root: Repository root path. Auto-detected if omitted.
+        base: Git ref for diff comparison. Default: HEAD~1.
+    """
+    return get_minimal_context(
+        task=task, changed_files=changed_files,
+        repo_root=repo_root, base=base,
     )
 
 
