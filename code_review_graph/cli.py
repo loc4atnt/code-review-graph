@@ -429,9 +429,7 @@ def main() -> None:
     from .incremental import (
         find_project_root,
         find_repo_root,
-        full_build,
         get_db_path,
-        incremental_update,
         watch,
     )
 

@@ -91,21 +91,21 @@ def get_minimal_context(
         # 3. Top 3 communities
         communities: list[str] = []
         try:
-            rows = store.conn.execute(
+            rows = store._conn.execute(
                 "SELECT name FROM communities ORDER BY size DESC LIMIT 3"
             ).fetchall()
             communities = [r[0] for r in rows]
-        except Exception:
+        except Exception:  # nosec B110 — table may not exist yet
             pass
 
         # 4. Top 3 critical flows
         flows: list[str] = []
         try:
-            rows = store.conn.execute(
+            rows = store._conn.execute(
                 "SELECT name FROM flows ORDER BY criticality DESC LIMIT 3"
             ).fetchall()
             flows = [r[0] for r in rows]
-        except Exception:
+        except Exception:  # nosec B110 — table may not exist yet
             pass
 
         # 5. Suggest next tools based on task keywords

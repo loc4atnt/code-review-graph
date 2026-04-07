@@ -46,15 +46,15 @@ from ._common import (
 # -- build ------------------------------------------------------------------
 from .build import build_or_update_graph, run_postprocess
 
-# -- context ----------------------------------------------------------------
-from .context import get_minimal_context
-
 # -- community_tools --------------------------------------------------------
 from .community_tools import (
     get_architecture_overview_func,
     get_community_func,
     list_communities_func,
 )
+
+# -- context ----------------------------------------------------------------
+from .context import get_minimal_context
 
 # -- docs -------------------------------------------------------------------
 from .docs import embed_graph, generate_wiki_func, get_docs_section, get_wiki_page_func

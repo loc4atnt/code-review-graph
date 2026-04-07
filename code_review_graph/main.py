@@ -21,8 +21,6 @@ from .tools import (
     apply_refactor_func,
     build_or_update_graph,
     cross_repo_search_func,
-    get_minimal_context,
-    run_postprocess,
     detect_changes_func,
     embed_graph,
     find_large_functions,
@@ -33,6 +31,7 @@ from .tools import (
     get_docs_section,
     get_flow,
     get_impact_radius,
+    get_minimal_context,
     get_review_context,
     get_wiki_page_func,
     list_communities_func,
@@ -41,6 +40,7 @@ from .tools import (
     list_repos_func,
     query_graph,
     refactor_func,
+    run_postprocess,
     semantic_search_nodes,
 )
 

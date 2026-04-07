@@ -12,7 +12,8 @@ detail_level="minimal" first patterns with get_minimal_context entry point.
 
 from __future__ import annotations
 
-_TOKEN_EFFICIENCY_PREAMBLE = """\
+_TOKEN_EFFICIENCY_PREAMBLE = (  # nosec B105 — prompt template, not a password
+    """\
 ## Rules for Token-Efficient Graph Usage
 1. ALWAYS call `get_minimal_context` first with a task description.
 2. Use `detail_level="minimal"` on all tool calls unless the minimal output \
@@ -25,6 +26,7 @@ scans (list_communities with full members).
 6. When reviewing changes: detect_changes(detail_level="minimal") → only \
 expand on high-risk items.
 """
+)
 
 
 def review_changes_prompt(base: str = "HEAD~1") -> list[dict]:

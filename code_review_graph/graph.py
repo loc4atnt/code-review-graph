@@ -8,6 +8,7 @@ Supports impact-radius queries and subgraph extraction.
 from __future__ import annotations
 
 import json
+import logging
 import sqlite3
 import threading
 import time
@@ -15,15 +16,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
-import logging
-
 import networkx as nx
 
 from .constants import BFS_ENGINE, MAX_IMPACT_DEPTH, MAX_IMPACT_NODES
 from .migrations import get_schema_version, run_migrations
+from .parser import EdgeInfo, NodeInfo
 
 logger = logging.getLogger(__name__)
-from .parser import EdgeInfo, NodeInfo
 
 # ---------------------------------------------------------------------------
 # Schema
