@@ -1,5 +1,51 @@
 # Changelog
 
+## [2.2.2] - 2026-04-08
+
+### Added
+- **Kotlin call extraction**: `simple_identifier` + `navigation_expression` support for Kotlin method calls (PR #107)
+- **JUnit/Kotlin test detection**: Annotation-based test classification (`@Test`, `@ParameterizedTest`, etc.) for Java/Kotlin/C# (PR #107)
+
+### Fixed
+- **Windows encoding crash**: All `write_text`/`read_text` calls in `skills.py` now use `encoding='utf-8'` explicitly (PR #152, fixes #147, #148)
+- **Invalid `--quiet` flag in hooks**: Removed non-existent `--quiet` and `--json` flags from generated hook commands (PR #152, fixes #149)
+
+### Housekeeping
+- Untracked `.claude-plugin/` directory and added to `.gitignore`
+- GitHub issue triage: responded to 30+ issues, closed 14, reviewed 24 PRs
+
+## [2.2.1] - 2026-04-07
+
+### Added
+- **Parallel parsing**: `ProcessPoolExecutor` for 3-5x faster builds (`CRG_PARSE_WORKERS`, `CRG_SERIAL_PARSE`)
+- **Lazy post-processing**: `postprocess="full"|"minimal"|"none"` parameter, `run_postprocess` MCP tool + CLI command
+- **SQLite-native BFS**: Recursive CTE replaces NetworkX for impact analysis (`CRG_BFS_ENGINE`)
+- **Configurable limits**: `CRG_MAX_IMPACT_NODES`, `CRG_MAX_IMPACT_DEPTH`, `CRG_MAX_BFS_DEPTH`, `CRG_MAX_SEARCH_RESULTS`
+- **Multi-hop dependents**: N-hop `find_dependents()` with `CRG_DEPENDENT_HOPS` (default 2) and 500-file cap
+- **Token-efficient output**: `detail_level="minimal"` on 8 tools for 40-60% token reduction
+- **`get_minimal_context` tool**: Ultra-compact entry point (~100 tokens) with task-based tool routing
+- **Token-efficient prompts**: All 5 MCP prompts rewritten with minimal-first workflows
+- **Incremental flow/community updates**: `incremental_trace_flows()`, `incremental_detect_communities()`
+- **Visualization aggregation**: Community/file/auto modes with drill-down for large graphs (`--mode`)
+- **Token-efficiency benchmarks**: 5 workflow benchmarks in `eval/token_benchmark.py`
+- **DB schema v6**: Pre-computed `community_summaries`, `flow_snapshots`, `risk_index` tables
+- **Token Efficiency Rules** in all skill templates and CLAUDE.md
+
+### Changed
+- CLI `build`/`update` support `--skip-flows`, `--skip-postprocess` flags
+- PostToolUse hook uses `--skip-flows` for faster incremental updates
+- VS Code extension schema version bumped to v6
+
+### Fixed
+- mypy type errors in parallel parsing and context tool
+- Bandit false positive on prompt preamble string
+- Import sorting in graph.py, main.py, tools/__init__.py
+- Unused imports cleaned up in cli.py
+
+### Housekeeping
+- Gitignore: untrack `marketing-diagram.excalidraw`, `evaluate/results/`, `evaluate/reports/`
+- Updated FEATURES.md, LLM-OPTIMIZED-REFERENCE.md, CHANGELOG.md for v2.2.1
+
 ## [2.1.0] - 2026-04-03
 
 ### Added

@@ -141,7 +141,7 @@ def install_platform_configs(
         existing: dict[str, Any] = {}
         if config_path.exists():
             try:
-                existing = json.loads(config_path.read_text())
+                existing = json.loads(config_path.read_text(encoding="utf-8"))
             except (json.JSONDecodeError, OSError):
                 logger.warning("Invalid JSON in %s, will overwrite.", config_path)
                 existing = {}
@@ -176,7 +176,7 @@ def install_platform_configs(
             print(f"  [dry-run] {plat['name']}: would write {config_path}")
         else:
             config_path.parent.mkdir(parents=True, exist_ok=True)
-            config_path.write_text(json.dumps(existing, indent=2) + "\n")
+            config_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
             print(f"  {plat['name']}: configured {config_path}")
 
         configured.append(plat["name"])
@@ -204,7 +204,14 @@ _SKILLS: dict[str, dict[str, str]] = {
             "### Tips\n\n"
             "- Start broad (stats, architecture) then narrow down to specific areas.\n"
             "- Use `children_of` on a file to see all its functions and classes.\n"
-            "- Use `find_large_functions` to identify complex code."
+            "- Use `find_large_functions` to identify complex code.\n\n"
+            "## Token Efficiency Rules\n"
+            "- ALWAYS start with `get_minimal_context(task=\"<your task>\")` "
+            "before any other graph tool.\n"
+            "- Use `detail_level=\"minimal\"` on all calls. Only escalate to "
+            "\"standard\" when minimal is insufficient.\n"
+            "- Target: complete any review/debug/refactor task in ≤5 tool calls "
+            "and ≤800 total output tokens."
         ),
     },
     "review-changes.md": {
@@ -225,7 +232,14 @@ _SKILLS: dict[str, dict[str, str]] = {
             "- What changed and why it matters\n"
             "- Test coverage status\n"
             "- Suggested improvements\n"
-            "- Overall merge recommendation"
+            "- Overall merge recommendation\n\n"
+            "## Token Efficiency Rules\n"
+            "- ALWAYS start with `get_minimal_context(task=\"<your task>\")` "
+            "before any other graph tool.\n"
+            "- Use `detail_level=\"minimal\"` on all calls. Only escalate to "
+            "\"standard\" when minimal is insufficient.\n"
+            "- Target: complete any review/debug/refactor task in ≤5 tool calls "
+            "and ≤800 total output tokens."
         ),
     },
     "debug-issue.md": {
@@ -244,7 +258,14 @@ _SKILLS: dict[str, dict[str, str]] = {
             "### Tips\n\n"
             "- Check both callers and callees to understand the full context.\n"
             "- Look at affected flows to find the entry point that triggers the bug.\n"
-            "- Recent changes are the most common source of new issues."
+            "- Recent changes are the most common source of new issues.\n\n"
+            "## Token Efficiency Rules\n"
+            "- ALWAYS start with `get_minimal_context(task=\"<your task>\")` "
+            "before any other graph tool.\n"
+            "- Use `detail_level=\"minimal\"` on all calls. Only escalate to "
+            "\"standard\" when minimal is insufficient.\n"
+            "- Target: complete any review/debug/refactor task in ≤5 tool calls "
+            "and ≤800 total output tokens."
         ),
     },
     "refactor-safely.md": {
@@ -265,7 +286,14 @@ _SKILLS: dict[str, dict[str, str]] = {
             "- Always preview before applying (rename mode gives you an edit list).\n"
             "- Check `get_impact_radius` before major refactors.\n"
             "- Use `get_affected_flows` to ensure no critical paths are broken.\n"
-            "- Run `find_large_functions` to identify decomposition targets."
+            "- Run `find_large_functions` to identify decomposition targets.\n\n"
+            "## Token Efficiency Rules\n"
+            "- ALWAYS start with `get_minimal_context(task=\"<your task>\")` "
+            "before any other graph tool.\n"
+            "- Use `detail_level=\"minimal\"` on all calls. Only escalate to "
+            "\"standard\" when minimal is insufficient.\n"
+            "- Target: complete any review/debug/refactor task in ≤5 tool calls "
+            "and ≤800 total output tokens."
         ),
     },
 }
@@ -297,7 +325,7 @@ def generate_skills(repo_root: Path, skills_dir: Path | None = None) -> Path:
             "---\n\n"
             f"{skill['body']}\n"
         )
-        path.write_text(content)
+        path.write_text(content, encoding="utf-8")
         logger.info("Wrote skill: %s", path)
 
     return skills_dir
@@ -317,13 +345,13 @@ def generate_hooks_config() -> dict[str, Any]:
             "PostToolUse": [
                 {
                     "matcher": "Edit|Write|Bash",
-                    "command": "code-review-graph update --quiet",
+                    "command": "code-review-graph update --skip-flows",
                     "timeout": 5000,
                 },
             ],
             "SessionStart": [
                 {
-                    "command": "code-review-graph status --json",
+                    "command": "code-review-graph status",
                     "timeout": 3000,
                 },
             ],
@@ -353,14 +381,14 @@ def install_hooks(repo_root: Path) -> None:
     existing: dict[str, Any] = {}
     if settings_path.exists():
         try:
-            existing = json.loads(settings_path.read_text())
+            existing = json.loads(settings_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as exc:
             logger.warning("Could not read existing %s: %s", settings_path, exc)
 
     hooks_config = generate_hooks_config()
     existing.update(hooks_config)
 
-    settings_path.write_text(json.dumps(existing, indent=2) + "\n")
+    settings_path.write_text(json.dumps(existing, indent=2) + "\n", encoding="utf-8")
     logger.info("Wrote hooks config: %s", settings_path)
 
 
@@ -417,7 +445,7 @@ def _inject_instructions(file_path: Path, marker: str, section: str) -> bool:
     """
     existing = ""
     if file_path.exists():
-        existing = file_path.read_text()
+        existing = file_path.read_text(encoding="utf-8")
 
     if marker in existing:
         logger.info("%s already contains instructions, skipping.", file_path.name)
@@ -425,7 +453,7 @@ def _inject_instructions(file_path: Path, marker: str, section: str) -> bool:
 
     separator = "\n" if existing and not existing.endswith("\n") else ""
     extra_newline = "\n" if existing else ""
-    file_path.write_text(existing + separator + extra_newline + section)
+    file_path.write_text(existing + separator + extra_newline + section, encoding="utf-8")
     logger.info("Appended MCP tools section to %s", file_path)
     return True
 
