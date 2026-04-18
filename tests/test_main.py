@@ -48,6 +48,47 @@ class TestResolveRepoRoot:
         assert crg_main._resolve_repo_root("/explicit") == "/explicit"
 
 
+class TestServeMainTransport:
+    """``main()`` wires FastMCP to stdio or Streamable HTTP."""
+
+    def test_stdio_calls_mcp_run_stdio(self, monkeypatch):
+        calls: list[dict] = []
+
+        def fake_run(**kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr(crg_main.mcp, "run", fake_run)
+        crg_main.main(repo_root=None)
+        assert calls == [{"transport": "stdio"}]
+
+    def test_http_calls_mcp_run_with_host_port(self, monkeypatch):
+        calls: list[dict] = []
+
+        def fake_run(**kwargs):
+            calls.append(kwargs)
+
+        monkeypatch.setattr(crg_main.mcp, "run", fake_run)
+        crg_main.main(
+            repo_root="/tmp/r",
+            transport="streamable-http",
+            host="127.0.0.1",
+            port=5555,
+        )
+        assert calls == [
+            {
+                "transport": "streamable-http",
+                "host": "127.0.0.1",
+                "port": 5555,
+            }
+        ]
+
+    def test_streamable_http_without_host_port_raises(self):
+        with pytest.raises(ValueError, match="requires host and port"):
+            crg_main.main(transport="streamable-http", host=None, port=5555)
+        with pytest.raises(ValueError, match="requires host and port"):
+            crg_main.main(transport="streamable-http", host="127.0.0.1", port=None)
+
+
 class TestLongRunningToolsAreAsync:
     """Long-running MCP tools must be registered as coroutines so the
     asyncio event loop stays responsive while the work runs in a

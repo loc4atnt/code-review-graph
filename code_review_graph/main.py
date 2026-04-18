@@ -1,7 +1,9 @@
 """MCP server entry point for Code Review Graph.
 
 Run as: code-review-graph serve
-Communicates via stdio (standard MCP transport).
+Communicates via stdio (standard MCP transport), or use
+``code-review-graph serve --http`` for Streamable HTTP on localhost (port 5555
+by default).
 """
 
 from __future__ import annotations
@@ -41,6 +43,7 @@ from .tools import (
     get_suggested_questions_func,
     get_surprising_connections_func,
     get_wiki_page_func,
+    traverse_graph_func,
     list_communities_func,
     list_flows,
     list_graph_stats,
@@ -49,7 +52,6 @@ from .tools import (
     refactor_func,
     run_postprocess,
     semantic_search_nodes,
-    traverse_graph_func,
 )
 
 # NOTE: Thread-safe for stdio MCP (single-threaded). If adding HTTP/SSE
@@ -906,8 +908,14 @@ def pre_merge_check(base: str = "HEAD~1") -> list[dict]:
     return pre_merge_check_prompt(base=base)
 
 
-def main(repo_root: str | None = None) -> None:
-    """Run the MCP server via stdio.
+def main(
+    repo_root: str | None = None,
+    *,
+    transport: str = "stdio",
+    host: str | None = None,
+    port: int | None = None,
+) -> None:
+    """Run the MCP server (stdio or HTTP).
 
     On Windows, Python 3.8+ defaults to ``ProactorEventLoop``, which
     interacts poorly with ``concurrent.futures.ProcessPoolExecutor``
@@ -916,15 +924,28 @@ def main(repo_root: str | None = None) -> None:
     ``embed_graph_tool``. Switching to ``WindowsSelectorEventLoopPolicy``
     before fastmcp starts its loop avoids the deadlock.
     See: #46, #136
+
+    Args:
+        repo_root: Optional default repository root for tools.
+        transport: ``"stdio"`` (default) or ``"streamable-http"`` for local HTTP.
+        host: Bind address when using HTTP (required for HTTP; set by CLI).
+        port: Port when using HTTP (required for HTTP; set by CLI).
     """
     global _default_repo_root
     _default_repo_root = repo_root
     if sys.platform == "win32":
         import asyncio
         asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
-    # Stdio MCP must keep stdout strictly JSON-RPC. FastMCP's banner/update
-    # notices corrupt the handshake stream on clients like Codex CLI.
-    mcp.run(transport="stdio", show_banner=False)
+    if transport == "stdio":
+        # Stdio MCP must keep stdout strictly JSON-RPC. FastMCP's banner/update
+        # notices corrupt the handshake stream on clients like Codex CLI.
+        mcp.run(transport="stdio", show_banner=False)
+    elif transport == "streamable-http":
+        if host is None or port is None:
+            raise ValueError("streamable-http transport requires host and port")
+        mcp.run(transport="streamable-http", host=host, port=port)
+    else:
+        raise ValueError(f"unsupported transport: {transport!r}")
 
 
 if __name__ == "__main__":

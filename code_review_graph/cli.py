@@ -7,7 +7,7 @@ Usage:
     code-review-graph update [--base BASE]
     code-review-graph watch
     code-review-graph status
-    code-review-graph serve
+    code-review-graph serve [--http] [--host ADDR] [--port PORT]
     code-review-graph visualize
     code-review-graph wiki
     code-review-graph detect-changes [--base BASE] [--brief]
@@ -96,7 +96,7 @@ def _print_banner() -> None:
     {g}repos{r}       List registered repositories
     {g}postprocess{r} Run post-processing {d}(flows, communities, FTS){r}
     {g}eval{r}        Run evaluation benchmarks
-    {g}serve{r}       Start MCP server
+    {g}serve{r}       Start MCP server {d}(stdio, or {g}--http{r} on localhost:5555){r}
 
   {d}Run{r} {b}code-review-graph <command> --help{r} {d}for details{r}
 """)
@@ -498,8 +498,29 @@ def main() -> None:
     detect_cmd.add_argument("--repo", default=None, help="Repository root (auto-detected)")
 
     # serve
-    serve_cmd = sub.add_parser("serve", help="Start MCP server (stdio transport)")
+    serve_cmd = sub.add_parser(
+        "serve",
+        help="Start MCP server (stdio by default, or HTTP on localhost with --http)",
+    )
     serve_cmd.add_argument("--repo", default=None, help="Repository root (auto-detected)")
+    serve_cmd.add_argument(
+        "--http",
+        action="store_true",
+        help="Listen for MCP over Streamable HTTP on localhost (default port 5555)",
+    )
+    serve_cmd.add_argument(
+        "--host",
+        default=None,
+        metavar="ADDR",
+        help="Bind address for --http (default: 127.0.0.1)",
+    )
+    serve_cmd.add_argument(
+        "--port",
+        type=int,
+        default=None,
+        metavar="PORT",
+        help="Port for --http (default: 5555)",
+    )
 
     args = ap.parse_args()
 
@@ -514,7 +535,21 @@ def main() -> None:
     if args.command == "serve":
         from .main import main as serve_main
 
-        serve_main(repo_root=args.repo)
+        if args.port is not None and not args.http:
+            serve_cmd.error("--port requires --http")
+        if args.host is not None and not args.http:
+            serve_cmd.error("--host requires --http")
+        if args.http:
+            host = args.host if args.host is not None else "127.0.0.1"
+            port = args.port if args.port is not None else 5555
+            serve_main(
+                repo_root=args.repo,
+                transport="streamable-http",
+                host=host,
+                port=port,
+            )
+        else:
+            serve_main(repo_root=args.repo)
         return
 
     if args.command == "eval":
